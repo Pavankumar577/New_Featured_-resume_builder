@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // 1. Global Catch-All Deny Block
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Standard high-security global helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Profile validation
+    function isValidUserProfile(data) {
+      return data.keys().hasAll(['userId', 'email'])
+        && data.keys().size() <= 8
+        && data.userId is string
+        && data.userId.size() <= 128
+        && data.email is string
+        && data.email.size() <= 200
+        && (data.get('displayName', '') is string)
+        && (data.get('displayName', '').size() <= 100);
+    }
+
+    // Resume validation
+    function isValidResume(data) {
+      return data.keys().hasAll(['id', 'userId', 'title'])
+        && data.keys().size() <= 16
+        && data.id is string
+        && data.id.size() <= 128
+        && data.userId is string
+        && data.userId.size() <= 128
+        && data.title is string
+        && data.title.size() <= 200
+        && (data.get('atsType', '') is string)
+        && (data.get('atsType', '').size() <= 50);
+    }
+
+    // 2. User Profiles Collection Rules
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) 
+                    && isValidId(userId)
+                    && isValidUserProfile(incoming()) 
+                    && incoming().createdAt == request.time;
+      allow update: if isOwner(userId) 
+                    && isValidId(userId)
+                    && isValidUserProfile(incoming())
+                    && incoming().updatedAt == request.time
+                    && incoming().createdAt == existing().createdAt;
+    }
+
+    // 3. Resumes Collection Rules
+    match /resumes/{resumeId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() 
+                    && isValidId(resumeId)
+                    && incoming().userId == request.auth.uid
+                    && isValidResume(incoming())
+                    && incoming().createdAt == request.time;
+      allow update: if isSignedIn() 
+                    && isValidId(resumeId)
+                    && existing().userId == request.auth.uid
+                    && incoming().userId == request.auth.uid
+                    && isValidResume(incoming())
+                    && incoming().updatedAt == request.time
+                    && incoming().createdAt == existing().createdAt;
+      allow delete: if isSignedIn() 
+                    && existing().userId == request.auth.uid;
+    }
+  }
+}

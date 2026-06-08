@@ -1,0 +1,6 @@
+{
+  "name": "ATS Resume Builder",
+  "description": "Next-generation professional resume builder with native authentication, live document preview, vendor-specific ATS simulation, AI content detoxify, and multi-agent recruiter persona audits.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
